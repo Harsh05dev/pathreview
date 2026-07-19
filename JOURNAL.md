@@ -25,4 +25,4 @@ a raw-string regression. This is a Tier 1 fix scoped to a single file in the
 
 **Setup confirmation:** [x] App runs locally at localhost:5173
 
-**Cohort ledger:** [ ] Issue added to cohort ledger
+**Cohort ledger:** [x] Issue added to cohort ledger
