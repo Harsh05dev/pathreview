@@ -33,7 +33,7 @@ JOURNAL entry.
 
 Files/functions I expect to touch:
 
-- `api/routes/health.py` — `health_check()`, line 29:
+- `api/routes/health.py` — `health_check()`, line 31:
   `await db.execute("SELECT 1")`. This is the one behavioral change. I will also
   add `from sqlalchemy import text` at the top of this file.
 - `tests/unit/test_health.py` — **new** file. The Week 9 fix test asserting the
@@ -54,7 +54,7 @@ Concrete, ordered sub-tasks:
 1. Run `make test-unit` on a clean branch first to record a green baseline
    before touching anything.
 2. Add `from sqlalchemy import text` to the imports in `api/routes/health.py`.
-3. Change line 29 in `health_check()` from `await db.execute("SELECT 1")` to
+3. Change line 31 in `health_check()` from `await db.execute("SELECT 1")` to
    `await db.execute(text("SELECT 1"))`. No other logic in the handler changes.
 4. Write `tests/unit/test_health.py`: mock the async session, assert the happy
    path sets `dependencies.postgres == "healthy"` and returns `200`, and assert
