@@ -54,3 +54,33 @@ instead of fighting architectural complexity.
 **Setup confirmation:** [x] App runs locally at localhost:5173
 
 **Cohort ledger:** [x] Issue added to cohort ledger
+
+## Week 8 — Reproduction & solution planning
+
+**Reproduction commit link:** https://github.com/Harsh05dev/pathreview/commit/2347ee4bbfa79cf64f827cdf6009b7fc3f203829
+
+**Reproduction summary:**
+I reproduced issue #154 with a unit test (`tests/unit/test_health_repro.py`)
+that drives `health_check()` in `api/routes/health.py` with a mock async
+session mimicking SQLAlchemy 2.x `execute()` semantics. The raw string
+`"SELECT 1"` is rejected with `ArgumentError: Textual SQL expression
+'SELECT 1' should be explicitly declared as text('SELECT 1')` (confirmed
+against the installed `sqlalchemy 2.0.51`); the broad `try/except` swallows it
+and the endpoint falsely reports Postgres `"unhealthy"` and returns HTTP `503`
+even though the database is reachable. A second test pins the underlying 2.x
+behavior directly (raw string rejected, `text("SELECT 1")` accepted as a
+`TextClause`). Both tests pass against the current buggy code, so CI stays
+green; they document the reproduction and will be superseded by the fix test
+in Week 9.
+
+**PLAN.md link:** https://github.com/Harsh05dev/pathreview/blob/fix/154-health-db-probe-text/PLAN.md
+
+**Walkthrough video (recommended):** _not recorded_
+
+**Blockers or open questions:**
+- Nearby latent bug on the same file: `settings.redis_host` is referenced in
+  the Redis probe but may not exist on `Settings` (separate issue #155) — out
+  of scope for #154, will not touch it.
+- Need to confirm the async-mock pattern in the Week 9 `test_health.py` matches
+  the sibling tests' style in `tests/unit/` (pytest markers + `pytest-asyncio`
+  strict mode, which requires an explicit `@pytest.mark.asyncio`).
