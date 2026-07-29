@@ -87,37 +87,70 @@ in Week 9.
 
 ## Week 9 — Solution building & PR submission
 
-**Pull request:** https://github.com/ascherj/pathreview/pull/359 (`fix(api): wrap health check DB probe in text()`, `Fixes #154`)
+### Check-in 1 (mid-week)
 
-**Fix commit:** https://github.com/Harsh05dev/pathreview/commit/ea34abf
+**Branch:** `fix/154-health-db-probe-text`
 
-**What I changed:**
-- `api/routes/health.py` — imported `text` from `sqlalchemy` and changed the
-  Postgres probe from `db.execute("SELECT 1")` to `db.execute(text("SELECT 1"))`.
-  One-line behavioral change; no handler logic or response schema touched.
-  (Project `ruff --fix` also reordered imports and dropped an unused
-  `timedelta` import in the same file.)
-- `tests/unit/test_health.py` — new. Happy path asserts a reachable DB reports
-  `postgres == "healthy"` and that the probe is called with a `TextClause`
-  (regression guard against a raw string); error path asserts a real DB failure
-  still yields `"unhealthy"` + `503`.
-- Removed `tests/unit/test_health_repro.py` (Week 8 scaffold, superseded).
+**Current progress (sub-tasks completed from PLAN.md):**
+- [x] PLAN step 1 — ran `make test-unit` on a clean branch to record a baseline
+  *before* any code change: 377 passing, 53 pre-existing failures (in
+  `test_review_service.py`, `test_skill_extractor.py`, `test_tech_detector.py`,
+  etc.) unrelated to #154.
+- [x] PLAN Map / Risk #1 — read `core/database.py` `get_db` and confirmed it
+  yields a real SQLAlchemy 2.x `AsyncSession` (built with `async_sessionmaker`,
+  `class_=AsyncSession`), so wrapping the probe in `text()` is the correct fix.
+- [x] PLAN steps 2–3 — applied the fix in `api/routes/health.py`: added
+  `from sqlalchemy import text` and changed the Postgres probe from
+  `db.execute("SELECT 1")` to `db.execute(text("SELECT 1"))`.
+- [x] PLAN step 4 (started) — drafted `tests/unit/test_health.py`, matching the
+  async-mock + `@pytest.mark.asyncio` class-based pattern used by
+  `tests/unit/test_review_service.py`.
 
-**Verification:**
-- `pytest tests/unit/test_health.py -v` → 2 passed.
-- Full `pytest -m unit`: 53 failures both before and after my change — the
-  failing set is byte-identical, so I introduced **0** new failures. Those 53
-  are pre-existing and documented in the PR's Notes for Reviewers.
-- Changed files pass `ruff check` and `black --check`. Repo-wide `make check`
-  has pre-existing lint/type failures unrelated to this change (also noted in
-  the PR).
+**Next steps (what remains):**
+- Finish and run the two tests; delete the Week 8 repro scaffold
+  `tests/unit/test_health_repro.py` (superseded).
+- Run `make check` and full `make test-unit`; diff the failing set against the
+  baseline to prove zero new failures.
+- Fill in the PR template and open the PR against `ascherj/pathreview`.
 
-**Confirmed unknowns from Week 8:**
-- Risk #1 resolved: `core/database.py` `get_db` yields a real SQLAlchemy 2.x
-  `AsyncSession` (via `async_sessionmaker`), so `text()` is the correct fix.
-- The test asserts on `dependencies.postgres` specifically, so the unrelated
-  Redis/`settings` gap (#155) does not mask the Postgres fix.
+**Blockers:** None blocking the fix. Note: `make test-integration` cannot run
+locally (no Docker services available), so endpoint verification relies on unit
+tests plus manual `curl` reasoning.
 
-**Blockers or open questions:**
-- Cannot run `make test-integration` locally (no Docker services); relied on
-  unit tests + manual `curl` reasoning for the endpoint behavior.
+### Check-in 2 (end of week)
+
+**Branch:** `fix/154-health-db-probe-text`
+
+**Pull request:** https://github.com/ascherj/pathreview/pull/359
+(`fix(api): wrap health check DB probe in text()`, `Fixes #154`)
+
+**What I built (summary):** Wrapped the `GET /health` PostgreSQL probe in
+`sqlalchemy.text()` so it executes under SQLAlchemy 2.x instead of raising
+`ArgumentError` and falsely reporting a reachable database as `"unhealthy"`
+(HTTP 503). It is a one-line behavioral change plus one import in
+`api/routes/health.py`, covered by new unit tests.
+
+**Tests:**
+- **File created:** `tests/unit/test_health.py`. **File removed:**
+  `tests/unit/test_health_repro.py` (Week 8 reproduction scaffold, now
+  superseded).
+- **What they cover:**
+  `test_postgres_probe_uses_text_clause_and_reports_healthy` — asserts that with
+  a reachable database `dependencies.postgres == "healthy"` **and** that the
+  probe is called with a SQLAlchemy `TextClause`; it uses a session double that
+  rejects a bare `str` exactly as SQLAlchemy 2.x does, so it doubles as a
+  regression guard against re-introducing a raw-string query.
+  `test_postgres_probe_reports_unhealthy_on_db_error` — asserts that a genuine
+  DB failure is still caught and surfaced as `dependencies.postgres ==
+  "unhealthy"` with HTTP 503, so the fix does not swallow real outages.
+
+**Self-review:**
+- [x] `make check` passes — my changed files (`api/routes/health.py`,
+  `tests/unit/test_health.py`) pass `ruff check` and `black --check`. Repo-wide
+  `make check` has failures that exist on `main` before this change (183 `ruff`
+  errors + a numpy-stub `mypy` error); I confirmed my change introduces **no new
+  lint/type errors**. Documented in the PR's Notes for Reviewers.
+- [x] `make test-unit` passes — the two new `test_health.py` tests pass, and the
+  full unit suite shows the **same 53 pre-existing failures before and after**
+  my change (byte-identical failing set), so I introduced **0 new failures**.
+  Documented in the PR's Notes for Reviewers.
