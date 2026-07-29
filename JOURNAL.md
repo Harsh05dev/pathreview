@@ -84,3 +84,40 @@ in Week 9.
 - Need to confirm the async-mock pattern in the Week 9 `test_health.py` matches
   the sibling tests' style in `tests/unit/` (pytest markers + `pytest-asyncio`
   strict mode, which requires an explicit `@pytest.mark.asyncio`).
+
+## Week 9 — Solution building & PR submission
+
+**Pull request:** https://github.com/ascherj/pathreview/pull/359 (`fix(api): wrap health check DB probe in text()`, `Fixes #154`)
+
+**Fix commit:** https://github.com/Harsh05dev/pathreview/commit/ea34abf
+
+**What I changed:**
+- `api/routes/health.py` — imported `text` from `sqlalchemy` and changed the
+  Postgres probe from `db.execute("SELECT 1")` to `db.execute(text("SELECT 1"))`.
+  One-line behavioral change; no handler logic or response schema touched.
+  (Project `ruff --fix` also reordered imports and dropped an unused
+  `timedelta` import in the same file.)
+- `tests/unit/test_health.py` — new. Happy path asserts a reachable DB reports
+  `postgres == "healthy"` and that the probe is called with a `TextClause`
+  (regression guard against a raw string); error path asserts a real DB failure
+  still yields `"unhealthy"` + `503`.
+- Removed `tests/unit/test_health_repro.py` (Week 8 scaffold, superseded).
+
+**Verification:**
+- `pytest tests/unit/test_health.py -v` → 2 passed.
+- Full `pytest -m unit`: 53 failures both before and after my change — the
+  failing set is byte-identical, so I introduced **0** new failures. Those 53
+  are pre-existing and documented in the PR's Notes for Reviewers.
+- Changed files pass `ruff check` and `black --check`. Repo-wide `make check`
+  has pre-existing lint/type failures unrelated to this change (also noted in
+  the PR).
+
+**Confirmed unknowns from Week 8:**
+- Risk #1 resolved: `core/database.py` `get_db` yields a real SQLAlchemy 2.x
+  `AsyncSession` (via `async_sessionmaker`), so `text()` is the correct fix.
+- The test asserts on `dependencies.postgres` specifically, so the unrelated
+  Redis/`settings` gap (#155) does not mask the Postgres fix.
+
+**Blockers or open questions:**
+- Cannot run `make test-integration` locally (no Docker services); relied on
+  unit tests + manual `curl` reasoning for the endpoint behavior.
