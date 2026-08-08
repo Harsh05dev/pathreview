@@ -154,3 +154,82 @@ tests plus manual `curl` reasoning.
   full unit suite shows the **same 53 pre-existing failures before and after**
   my change (byte-identical failing set), so I introduced **0 new failures**.
   Documented in the PR's Notes for Reviewers.
+
+## Week 10 — Iteration & reflection
+
+### Reviewer feedback
+
+**Feedback received:** [ ] Yes  [x] No — still awaiting review
+
+**Summary of feedback:**
+No review arrived. PR #359 (https://github.com/ascherj/pathreview/pull/359) is
+still open against `ascherj/pathreview` with no maintainer comments as of the
+Week 10 deadline. Per the Summer 2026 course note, reviewer feedback is not a
+feature this term, so I did not expect a maintainer response and none came in.
+I re-read my own diff one more time to confirm it still applies cleanly on top
+of `main` and that the two `test_health.py` tests still pass.
+
+**How you responded:**
+No changes were warranted since there was no feedback to act on. The PR remains
+in its submitted state. If a reviewer does respond after the deadline, my plan
+is to reply within a day, treat any requested change as a new commit on the
+same branch (rather than force-rewriting history), and re-run `make check` and
+`make test-unit` before pushing so the reviewer sees a green, reproducible
+update.
+
+---
+
+### Reflection
+
+**What was harder than you expected?**
+The one-line code change was the easy part; the hard part was *proving* the fix
+was safe in a repo that was already failing. When I first ran `make check` and
+`make test-unit`, I panicked — 183 `ruff` errors, a `mypy` numpy-stub error,
+and 53 failing unit tests. I spent more time establishing that these failures
+pre-existed on `main` and were unrelated to `api/routes/health.py` than I spent
+on the actual `text()` wrapping. Capturing a byte-identical failing set before
+and after my change, so I could claim "0 new failures" with evidence, was the
+real work, and it was harder and slower than I anticipated for a Tier 1 issue.
+
+**What did you learn about working in a large codebase?**
+Contributing to someone else's production code is mostly about respecting
+boundaries and proving you didn't break anything, not about writing clever code.
+On my own projects I'd just fix a bug and move on; here I had to read
+`core/database.py` to confirm `get_db` actually yields a SQLAlchemy 2.x
+`AsyncSession` before I could trust that `text()` was even the right fix, and I
+had to match the existing async-mock + `@pytest.mark.asyncio` pattern from
+`tests/unit/test_review_service.py` instead of inventing my own test style. I
+also learned to leave nearby bugs alone — I spotted a likely `settings.redis_host`
+problem in the same file but scoped it out as a separate issue (#155) rather
+than expanding my PR.
+
+**How did AI tools help — and where did they fall short?**
+AI was most useful for orientation and pattern-matching: quickly explaining the
+SQLAlchemy 2.x behavior change (raw string → `ArgumentError: Textual SQL
+expression 'SELECT 1' should be explicitly declared as text(...)`), and helping
+me shape a session double that rejects a bare `str` exactly the way 2.x does so
+my test doubles as a regression guard. Where it fell short was judgment about
+*this specific repo's* messy state — no tool could tell me whether the 53
+failing tests were my fault or pre-existing; I had to run the baseline myself,
+diff the failing sets, and decide what was in scope. It also couldn't run
+`make test-integration` for me (no Docker services locally), so I had to reason
+about the endpoint behavior manually instead of relying on generated answers.
+
+**What would you do differently if you started over?**
+I'd capture the clean-branch test baseline in Week 8 during reproduction, not in
+Week 9 during the fix. I recorded the 377-pass / 53-fail baseline late, and
+having it earlier would have saved me the mid-week panic and let me plan the
+"0 new failures" evidence from the start. I'd also record the optional
+walkthrough video — I skipped it, and explaining the before/after out loud would
+have forced me to tighten my reasoning about why `text()` is the correct fix
+earlier in the process.
+
+**What are you most proud of from this module?**
+I'm most proud that my test doubles as a regression guard, not just a green
+checkmark. `test_postgres_probe_uses_text_clause_and_reports_healthy` asserts
+the probe is called with an actual `TextClause` and uses a session double that
+rejects a raw string the way SQLAlchemy 2.x does — so if someone later reverts
+`text("SELECT 1")` back to `"SELECT 1"`, the test fails instead of silently
+passing. For a first contribution to an unfamiliar production codebase, landing
+a fix that actively prevents its own regression feels like getting the process
+right, which was my whole goal in picking a Tier 1 issue.
